@@ -71,14 +71,16 @@
   import { getFirestore, doc, setDoc, onSnapshot, collection, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
   // 🔧 Firebase 設定をここに書き換えてください
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "SENDER_ID",
-    appId: "APP_ID"
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSyDSO0dLH3mDFQYd-srhs7crW-2nJQU3NU0",
+  authDomain: "mfes-ranking.firebaseapp.com",
+  projectId: "mfes-ranking",
+  storageBucket: "mfes-ranking.firebasestorage.app",
+  messagingSenderId: "312704030870",
+  appId: "1:312704030870:web:fcafc7477eb1ff84e00ab7",
+  measurementId: "G-Z0FN5HHH54"
+};
+
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
@@ -176,3 +178,4 @@
 </script>
 </body>
 </html>
+
