@@ -2,180 +2,171 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>文化祭クラス企画ランキング</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>文化祭ランキング</title>
   <script src="https://cdn.tailwindcss.com"></script>
-</head>
-<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+  <script type="module">
+    // Firebase SDK 読み込み
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, query, orderBy, limit, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
-<div id="message-container"></div>
+    // あなたの Firebase 設定（固定）
+    const firebaseConfig = {
+      apiKey: "AIzaSyDSO0dLH3mDFQYd-srhs7crW-2nJQU3NU0",
+      authDomain: "mfes-ranking.firebaseapp.com",
+      projectId: "mfes-ranking",
+      storageBucket: "mfes-ranking.firebasestorage.app",
+      messagingSenderId: "312704030870",
+      appId: "1:312704030870:web:fcafc7477eb1ff84e00ab7",
+      measurementId: "G-Z0FN5HHH54"
+    };
 
-<div class="container max-w-lg w-full p-6">
-  <!-- ユーザー画面 -->
-  <div id="user-view" class="space-y-6">
-    <div class="bg-white rounded-xl shadow-lg p-6">
-      <h1 class="text-2xl font-bold text-center">クラス企画ランキング</h1>
-      <p class="text-center text-gray-600">ニックネームとポイントを入れて参加！</p>
-    </div>
+    // Firebase 初期化
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
 
-    <!-- 入力フォーム -->
-    <div class="bg-gray-50 p-6 rounded-xl shadow-inner space-y-4">
-      <div>
-        <label class="block text-sm font-medium">ニックネーム</label>
-        <input type="text" id="nickname-input" class="w-full px-3 py-2 border rounded-md" placeholder="ニックネーム"/>
-      </div>
-      <div>
-        <label class="block text-sm font-medium">ポイント</label>
-        <input type="number" id="points-input" class="w-full px-3 py-2 border rounded-md" value="0"/>
-      </div>
-      <button id="submit-button" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700">送信</button>
-    </div>
+    // 匿名ログイン
+    signInAnonymously(auth).catch((error) => {
+      console.error("認証エラー:", error);
+    });
 
-    <!-- 自分の順位 -->
-    <div id="user-info" class="bg-indigo-50 p-4 rounded-lg text-center hidden">
-      <p class="font-bold text-indigo-700">あなたの情報</p>
-      <p>ID: <span id="user-id"></span></p>
-      <p class="text-lg font-bold mt-2">順位: <span id="user-rank"></span></p>
-    </div>
+    // UI 要素
+    const form = document.getElementById("scoreForm");
+    const nicknameInput = document.getElementById("nickname");
+    const pointsInput = document.getElementById("points");
+    const messageBox = document.getElementById("message");
+    const rankingList = document.getElementById("ranking");
 
-    <!-- 管理者ログイン -->
-    <div id="admin-login-section" class="bg-gray-200 p-6 rounded-xl shadow-inner space-y-4">
-      <h2 class="text-lg font-bold text-center">管理者ログイン</h2>
-      <input type="password" id="admin-password" class="w-full px-3 py-2 border rounded-md" placeholder="パスワード"/>
-      <button id="admin-login-button" class="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700">ログイン</button>
-    </div>
+    const adminSection = document.getElementById("adminSection");
+    const adminPasswordInput = document.getElementById("adminPassword");
+    const adminLoginBtn = document.getElementById("adminLogin");
+    const adminList = document.getElementById("adminRanking");
+    const adminLogoutBtn = document.getElementById("adminLogout");
 
-    <!-- ランキング -->
-    <div class="bg-white p-6 rounded-xl shadow-lg">
-      <h2 class="text-xl font-bold text-center mb-3">ランキング</h2>
-      <ul id="leaderboard-list" class="space-y-2"></ul>
-    </div>
-  </div>
+    // 管理者パスワード（ここを変える）
+    const ADMIN_PASSWORD = "108fes";
+    let isAdmin = false;
 
-  <!-- 管理者画面 -->
-  <div id="admin-view" class="space-y-6 hidden">
-    <div class="flex justify-between items-center">
-      <h1 class="text-2xl font-bold">管理者ページ</h1>
-      <button id="admin-logout-button" class="bg-indigo-600 text-white px-3 py-1 rounded-lg">ログアウト</button>
-    </div>
-    <div class="bg-white p-6 rounded-xl shadow-lg">
-      <h2 class="text-xl font-bold text-center mb-3">ランキング管理</h2>
-      <ul id="admin-leaderboard-list" class="space-y-2"></ul>
-    </div>
-  </div>
-</div>
+    // --- 送信処理 ---
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const nickname = nicknameInput.value.trim();
+      const points = parseInt(pointsInput.value, 10);
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-  import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-  import { getFirestore, doc, setDoc, onSnapshot, collection, query, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-  // 🔧 Firebase 設定をここに書き換えてください
-const firebaseConfig = {
-  apiKey: "AIzaSyDSO0dLH3mDFQYd-srhs7crW-2nJQU3NU0",
-  authDomain: "mfes-ranking.firebaseapp.com",
-  projectId: "mfes-ranking",
-  storageBucket: "mfes-ranking.firebasestorage.app",
-  messagingSenderId: "312704030870",
-  appId: "1:312704030870:web:fcafc7477eb1ff84e00ab7",
-  measurementId: "G-Z0FN5HHH54"
-};
-
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-
-  let userId = null;
-  let isAdmin = false;
-  const ADMIN_PASSWORD = "108"; // 👈 任意のパスワードに変更
-
-  // DOM
-  const userView = document.getElementById('user-view');
-  const adminView = document.getElementById('admin-view');
-  const nicknameInput = document.getElementById('nickname-input');
-  const pointsInput = document.getElementById('points-input');
-  const submitButton = document.getElementById('submit-button');
-  const leaderboardList = document.getElementById('leaderboard-list');
-  const adminLeaderboardList = document.getElementById('admin-leaderboard-list');
-  const userInfo = document.getElementById('user-info');
-  const userIdDisplay = document.getElementById('user-id');
-  const userRankDisplay = document.getElementById('user-rank');
-  const adminPasswordInput = document.getElementById('admin-password');
-  const adminLoginButton = document.getElementById('admin-login-button');
-  const adminLogoutButton = document.getElementById('admin-logout-button');
-
-  // Firebase Auth
-  onAuthStateChanged(auth, (user) => {
-    if (user) {
-      userId = user.uid;
-      userIdDisplay.textContent = userId;
-      userInfo.classList.remove("hidden");
-    }
-  });
-  signInAnonymously(auth);
-
-  // ランキング監視
-  const q = query(collection(db, "leaderboard"));
-  onSnapshot(q, (snapshot) => {
-    const data = [];
-    snapshot.forEach(doc => data.push({ id: doc.id, ...doc.data() }));
-    data.sort((a, b) => b.points - a.points);
-    renderLeaderboard(data);
-  });
-
-  // ランキング送信
-  submitButton.addEventListener("click", async () => {
-    const nickname = nicknameInput.value.trim();
-    const points = parseInt(pointsInput.value, 10);
-    if (!nickname || isNaN(points)) return alert("正しく入力してください");
-    await setDoc(doc(db, "leaderboard", userId), { nickname, points });
-  });
-
-  // 管理者ログイン
-  adminLoginButton.addEventListener("click", () => {
-    if (adminPasswordInput.value === ADMIN_PASSWORD) {
-      isAdmin = true;
-      userView.classList.add("hidden");
-      adminView.classList.remove("hidden");
-    } else {
-      alert("パスワードが違います");
-    }
-  });
-
-  adminLogoutButton.addEventListener("click", () => {
-    isAdmin = false;
-    adminView.classList.add("hidden");
-    userView.classList.remove("hidden");
-  });
-
-  // ランキング表示
-  function renderLeaderboard(data) {
-    leaderboardList.innerHTML = "";
-    adminLeaderboardList.innerHTML = "";
-
-    data.forEach((entry, i) => {
-      const li = document.createElement("li");
-      li.className = "flex justify-between bg-gray-50 p-2 rounded";
-      li.innerHTML = `<span>${i + 1}. ${entry.nickname}</span><span>${entry.points}pt</span>`;
-      leaderboardList.appendChild(li);
-
-      if (isAdmin) {
-        const adminLi = li.cloneNode(true);
-        const delBtn = document.createElement("button");
-        delBtn.textContent = "削除";
-        delBtn.className = "ml-2 px-2 py-1 bg-red-500 text-white rounded";
-        delBtn.onclick = () => deleteDoc(doc(db, "leaderboard", entry.id));
-        adminLi.appendChild(delBtn);
-        adminLeaderboardList.appendChild(adminLi);
+      if (!nickname || isNaN(points)) {
+        messageBox.textContent = "⚠️ ニックネームとポイントを入力してください";
+        messageBox.className = "text-red-500 text-center mt-2";
+        return;
       }
 
-      if (entry.id === userId) {
-        userRankDisplay.textContent = `${i + 1}位`;
+      try {
+        await addDoc(collection(db, "leaderboard"), {
+          nickname,
+          points,
+          createdAt: new Date()
+        });
+        messageBox.textContent = "✅ 送信が完了しました！";
+        messageBox.className = "text-green-600 text-center mt-2";
+
+        nicknameInput.value = "";
+        pointsInput.value = "";
+      } catch (error) {
+        console.error("送信エラー:", error);
+        messageBox.textContent = "⚠️ エラーが発生しました";
+        messageBox.className = "text-red-500 text-center mt-2";
       }
     });
-  }
-</script>
+
+    // --- ランキング表示（リアルタイム） ---
+    const q = query(collection(db, "leaderboard"), orderBy("points", "desc"), limit(20));
+    onSnapshot(q, (snapshot) => {
+      rankingList.innerHTML = "";
+      adminList.innerHTML = "";
+
+      let rank = 1;
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+
+        // 通常ランキング
+        const li = document.createElement("li");
+        li.textContent = `${rank}. ${data.nickname} - ${data.points} 点`;
+        li.className = "p-2 border-b";
+        rankingList.appendChild(li);
+
+        // 管理者用リスト（削除ボタン付き）
+        const adminLi = document.createElement("li");
+        adminLi.className = "p-2 flex justify-between items-center border-b";
+        adminLi.innerHTML = `
+          <span>${rank}. ${data.nickname} - ${data.points} 点</span>
+          <button class="bg-red-500 text-white px-2 py-1 rounded text-sm">削除</button>
+        `;
+        const deleteBtn = adminLi.querySelector("button");
+        deleteBtn.addEventListener("click", async () => {
+          if (confirm(`「${data.nickname}」を削除しますか？`)) {
+            await deleteDoc(doc(db, "leaderboard", docSnap.id));
+          }
+        });
+        adminList.appendChild(adminLi);
+
+        rank++;
+      });
+    });
+
+    // --- 管理者ログイン ---
+    adminLoginBtn.addEventListener("click", () => {
+      if (adminPasswordInput.value === ADMIN_PASSWORD) {
+        isAdmin = true;
+        adminSection.classList.remove("hidden");
+        adminPasswordInput.value = "";
+        messageBox.textContent = "🔑 管理者ログイン成功";
+        messageBox.className = "text-blue-600 text-center mt-2";
+      } else {
+        messageBox.textContent = "❌ パスワードが違います";
+        messageBox.className = "text-red-500 text-center mt-2";
+      }
+    });
+
+    // --- 管理者ログアウト ---
+    adminLogoutBtn.addEventListener("click", () => {
+      isAdmin = false;
+      adminSection.classList.add("hidden");
+      messageBox.textContent = "🚪 ログアウトしました";
+      messageBox.className = "text-gray-600 text-center mt-2";
+    });
+  </script>
+</head>
+<body class="bg-gray-100 p-4">
+  <div class="max-w-md mx-auto bg-white rounded shadow p-4">
+    <h1 class="text-xl font-bold mb-4 text-center">🎉 文化祭ランキング 🎉</h1>
+
+    <!-- 入力フォーム -->
+    <form id="scoreForm" class="space-y-2">
+      <input id="nickname" type="text" placeholder="ニックネーム" class="w-full border p-2 rounded" />
+      <input id="points" type="number" placeholder="ポイント" class="w-full border p-2 rounded" />
+      <button type="submit" class="w-full bg-blue-500 text-white py-2 rounded">送信</button>
+    </form>
+    <p id="message" class="text-center mt-2"></p>
+
+    <!-- ランキング -->
+    <h2 class="text-lg font-semibold mt-6">🏆 ランキング（TOP20）</h2>
+    <ul id="ranking" class="mt-2 divide-y"></ul>
+
+    <!-- 管理者ログイン -->
+    <div class="mt-6">
+      <input id="adminPassword" type="password" placeholder="管理者パスワード" class="w-full border p-2 rounded" />
+      <button id="adminLogin" class="w-full bg-gray-700 text-white py-2 rounded mt-2">管理者ログイン</button>
+    </div>
+
+    <!-- 管理者ページ -->
+    <div id="adminSection" class="hidden mt-6">
+      <div class="flex justify-between items-center">
+        <h2 class="text-lg font-semibold">🔧 管理者ページ</h2>
+        <button id="adminLogout" class="bg-gray-500 text-white px-2 py-1 rounded">ログアウト</button>
+      </div>
+      <ul id="adminRanking" class="mt-2 divide-y"></ul>
+    </div>
+  </div>
 </body>
 </html>
-
